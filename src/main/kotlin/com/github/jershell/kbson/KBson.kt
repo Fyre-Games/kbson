@@ -10,7 +10,7 @@ import org.bson.codecs.*
 class KBson(override val serializersModule: SerializersModule = DefaultModule, private val configuration: Configuration = Configuration()) : SerialFormat {
     fun <T> stringify(serializer: SerializationStrategy<T>, obj: T): BsonDocument {
         val doc = BsonDocument()
-        val writer = BsonDocumentWriter(doc)
+        val writer = KBsonWriter(doc)
 
         serializer.serialize(BsonEncoder(writer, serializersModule, configuration), obj)
         writer.flush()

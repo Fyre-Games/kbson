@@ -15,7 +15,7 @@ import java.util.UUID
 
 
 open class BsonEncoder(
-        private val writer: BsonWriter,
+        private val writer: KBsonWriter,
         override val serializersModule: SerializersModule,
         private val configuration: Configuration
 ) : AbstractEncoder() {
@@ -141,7 +141,21 @@ open class BsonEncoder(
     }
 
     override fun encodeNull() {
-        writer.writeNull()
+
+        if (configuration.nonEncodeNull) {
+            when (state) {
+                STATE.NAME -> {
+                    state = STATE.VALUE
+                    writer.skip()
+                }
+                STATE.VALUE -> {
+                    state = STATE.NAME
+                    writer.skip()
+                }
+            }
+        } else {
+            writer.writeNull()
+        }
     }
 
     override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) {

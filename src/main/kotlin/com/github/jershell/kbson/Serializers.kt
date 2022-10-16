@@ -1,15 +1,14 @@
 package com.github.jershell.kbson
 
-import kotlinx.serialization.InternalSerializationApi
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerialInfo
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.Serializer
+import kotlinx.serialization.*
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.*
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
 import kotlinx.serialization.modules.serializersModuleOf
@@ -154,10 +153,92 @@ object UUIDSerializer : KSerializer<UUID> {
     }
 }
 
+@Serializer(forClass = JsonElement::class)
+object JsonElementSerializer : KSerializer<JsonElement> {
+
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("JsonElementSerializer", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder,value: JsonElement) {
+        when (encoder) {
+            is BsonEncoder -> when (value) {
+                is JsonNull -> encoder.encodeNull()
+                is JsonObject -> encoder.encodeSerializableValue(JsonObjectSerializer,value)
+                is JsonPrimitive -> {
+
+                    if (value.isString) {
+                        return encoder.encodeString(value.content)
+                    }
+
+                    value.longOrNull?.let { return encoder.encodeLong(it) }
+
+                    value.content.toULongOrNull()?.let {
+                        encoder.encodeInline(ULong.serializer().descriptor).encodeLong(it.toLong())
+                        return
+                    }
+
+                    value.doubleOrNull?.let { return encoder.encodeDouble(it) }
+                    value.booleanOrNull?.let { return encoder.encodeBoolean(it) }
+                }
+                else -> throw SerializationException("Unknown JsonElement")
+            }
+            else -> throw SerializationException("Unknown encoder type")
+        }
+
+    }
+
+    override fun deserialize(decoder: Decoder): JsonElement {
+        return when (decoder) {
+            is FlexibleDecoder -> {
+                when (decoder.reader.currentBsonType) {
+                    BsonType.NULL -> decoder.reader.readNull().let{ JsonNull }
+                    BsonType.STRING -> JsonPrimitive(decoder.reader.readString())
+                    BsonType.BOOLEAN -> JsonPrimitive(decoder.reader.readBoolean())
+                    BsonType.DOUBLE -> JsonPrimitive(decoder.reader.readDouble())
+                    BsonType.INT32 -> JsonPrimitive(decoder.reader.readInt32())
+                    BsonType.INT64 -> JsonPrimitive(decoder.reader.readInt64())
+                    else -> throw SerializationException("Unknown JsonElement")
+                }
+            }
+
+            else -> throw SerializationException("Unknown decoder type")
+        }
+    }
+
+}
+
+@Serializer(forClass = JsonObject::class)
+object JsonObjectSerializer : KSerializer<JsonObject> {
+
+    private object JsonObjectDescriptor : SerialDescriptor by MapSerializer(String.serializer(),JsonElementSerializer).descriptor {
+        override val serialName: String = "kotlinx.serialization.json.JsonObject"
+    }
+
+    override val descriptor: SerialDescriptor = JsonObjectDescriptor
+
+    override fun serialize(encoder: Encoder, value: JsonObject) {
+        when (encoder) {
+            is BsonEncoder -> MapSerializer(String.serializer(),JsonElementSerializer).serialize(encoder,value)
+            else -> throw SerializationException("Unknown encoder type")
+        }
+
+    }
+
+    override fun deserialize(decoder: Decoder): JsonObject {
+        return when (decoder) {
+            is BsonFlexibleDecoder -> JsonObject(MapSerializer(String.serializer(),JsonElementSerializer).deserialize(decoder))
+            else -> throw SerializationException("Unknown decoder type")
+        }
+    }
+
+}
+
 val DefaultModule = SerializersModule {
     contextual(ObjectId::class, ObjectIdSerializer)
     contextual(BigDecimal::class, BigDecimalSerializer)
     contextual(ByteArray::class, ByteArraySerializer)
     contextual(Date::class, DateSerializer)
     contextual(UUID::class, UUIDSerializer)
+
+    contextual(JsonObject::class, JsonObjectSerializer)
+    contextual(JsonElement::class, JsonElementSerializer)
 }

@@ -3,31 +3,7 @@
  */
 package com.github.jershell.kbson
 
-import com.github.jershell.kbson.models.Blob
-import com.github.jershell.kbson.models.ChildEntity
-import com.github.jershell.kbson.models.Complex
-import com.github.jershell.kbson.models.Custom
-import com.github.jershell.kbson.models.EnumFoo
-import com.github.jershell.kbson.models.Foo
-import com.github.jershell.kbson.models.KeyByEnum
-import com.github.jershell.kbson.models.Nested
-import com.github.jershell.kbson.models.NestedComplex
-import com.github.jershell.kbson.models.NestedMap
-import com.github.jershell.kbson.models.NullableClass
-import com.github.jershell.kbson.models.NullableCollection
-import com.github.jershell.kbson.models.NullableDefaultClass
-import com.github.jershell.kbson.models.NullableNotOptionalClass
-import com.github.jershell.kbson.models.OptionalClass
-import com.github.jershell.kbson.models.SEX
-import com.github.jershell.kbson.models.SexWithValue
-import com.github.jershell.kbson.models.Simple
-import com.github.jershell.kbson.models.SimpleNG
-import com.github.jershell.kbson.models.Value
-import com.github.jershell.kbson.models.WithPair
-import com.github.jershell.kbson.models.WithUUID
-import com.github.jershell.kbson.models.WrapperMapWithAdvancedKey
-import com.github.jershell.kbson.models.WrapperMapWithObjectId
-import com.github.jershell.kbson.models.WrapperSet
+import com.github.jershell.kbson.models.*
 import com.github.jershell.kbson.models.polymorph.FooTimestampedMessage
 import com.github.jershell.kbson.models.polymorph.IntMessage
 import com.github.jershell.kbson.models.polymorph.Message
@@ -39,6 +15,11 @@ import com.github.jershell.kbson.models.polymorph.TimestampedMessage
 import com.github.jershell.kbson.models.polymorph.Wrapper
 import kotlinx.serialization.PolymorphicSerializer
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json.Default.configuration
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.plus
 import kotlinx.serialization.modules.polymorphic
@@ -72,7 +53,13 @@ import kotlin.test.assertTrue
 
 
 class KBsonTest {
-    private val kBson = KBson()
+
+    private val configuration = Configuration(
+        nonEncodeNull = true
+    )
+    private val kBson = KBson(
+        configuration = configuration
+    )
 
     private val ts = 1562442284934L
     val img = this::class.java
@@ -1581,4 +1568,43 @@ class KBsonTest {
                 assertEquals(doc, it)
             }
     }
+
+    @Test
+    fun testJsonObjectSerializer() {
+
+        val doc = BsonDocument().apply{
+            append("data",BsonDocument().apply{
+                append("string",BsonString("string"))
+                append("boolean",BsonBoolean(true))
+                append("int",BsonInt32(3))
+                append("double",BsonDouble(3.0))
+                append("long",BsonInt64(3L))
+
+                if (!configuration.nonEncodeNull) {
+                    append("null",BsonNull())
+                }
+
+                append("afterNull",BsonString("afterNull"))
+            })
+        }
+
+        WithJsonObject(buildJsonObject {
+            put("string",JsonPrimitive("string"))
+            put("boolean",JsonPrimitive(true))
+            put("int",JsonPrimitive(3))
+            put("double",JsonPrimitive(3.0))
+            put("long",JsonPrimitive(3L))
+            put("null",JsonNull)
+            put("afterNull",JsonPrimitive("afterNull"))
+        })
+            .let{
+                kBson.stringify(WithJsonObject.serializer(),it)
+            }
+            .let{
+                println(it.toJson())
+                assertEquals(doc.toJson(), it.toJson())
+            }
+
+    }
+
 }
