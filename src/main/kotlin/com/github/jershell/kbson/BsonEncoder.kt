@@ -271,4 +271,5 @@ open class BsonEncoder(
         writer.writeName(value.toString())
         state = STATE.VALUE
     }
+
 }

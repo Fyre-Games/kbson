@@ -10,6 +10,7 @@ import kotlinx.serialization.encoding.CompositeDecoder.Companion.UNKNOWN_NAME
 import kotlinx.serialization.modules.SerializersModule
 import org.bson.AbstractBsonReader
 import org.bson.AbstractBsonReader.State
+import org.bson.BsonArray
 import org.bson.BsonType
 import org.bson.types.ObjectId
 
@@ -129,6 +130,7 @@ abstract class FlexibleDecoder(
     override fun decodeString(): String {
         return reader.readString()
     }
+
 }
 
 class BsonFlexibleDecoder(

@@ -16,10 +16,8 @@ import com.github.jershell.kbson.models.polymorph.Wrapper
 import kotlinx.serialization.PolymorphicSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
 import kotlinx.serialization.json.Json.Default.configuration
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.plus
 import kotlinx.serialization.modules.polymorphic
@@ -38,7 +36,9 @@ import org.bson.BsonNull
 import org.bson.BsonObjectId
 import org.bson.BsonString
 import org.bson.BsonSymbol
+import org.bson.BsonValue
 import org.bson.UuidRepresentation
+import org.bson.json.JsonWriterSettings
 import org.bson.types.Decimal128
 import org.bson.types.ObjectId
 import java.math.BigDecimal
@@ -55,7 +55,7 @@ import kotlin.test.assertTrue
 class KBsonTest {
 
     private val configuration = Configuration(
-        nonEncodeNull = true
+        nonEncodeNull = false
     )
     private val kBson = KBson(
         configuration = configuration
@@ -290,6 +290,51 @@ class KBsonTest {
                 }
 
             )))
+    }
+
+    val withJsonObject = WithJsonObject(buildJsonObject {
+
+        val primitives = mutableMapOf<String,JsonElement>(
+            "string" to JsonPrimitive("string"),
+            "boolean" to JsonPrimitive(true),
+            "int" to JsonPrimitive(3),
+            "double" to JsonPrimitive(3.0),
+            "long" to JsonPrimitive(3L),
+        )
+
+        if (!configuration.nonEncodeNull) {
+            primitives["null"] = JsonNull
+        }
+
+        for ((key,value) in primitives) {
+            put(key,value)
+        }
+
+        put("afterNull",JsonPrimitive("afterNull"))
+        put("array",JsonArray(primitives.values.toList()))
+    })
+    val withJsonObjectDoc = BsonDocument().apply{
+        append("data",BsonDocument().apply{
+
+            val primitives = mutableMapOf<String,BsonValue>(
+                "string" to BsonString("string"),
+                "boolean" to BsonBoolean(true),
+                "int" to BsonInt32(3),
+                "double" to BsonDouble(3.0),
+                "long" to BsonInt64(3L)
+            )
+
+            if (!configuration.nonEncodeNull) {
+                primitives["null"] = BsonNull()
+            }
+
+            for ((key,value) in primitives) {
+                append(key,value)
+            }
+
+            append("afterNull",BsonString("afterNull"))
+            append("array",BsonArray(primitives.values.toList()))
+        })
     }
 
     @Test
@@ -1570,41 +1615,22 @@ class KBsonTest {
     }
 
     @Test
-    fun testJsonObjectSerializer() {
+    fun stringifyJsonObject() {
 
-        val doc = BsonDocument().apply{
-            append("data",BsonDocument().apply{
-                append("string",BsonString("string"))
-                append("boolean",BsonBoolean(true))
-                append("int",BsonInt32(3))
-                append("double",BsonDouble(3.0))
-                append("long",BsonInt64(3L))
-
-                if (!configuration.nonEncodeNull) {
-                    append("null",BsonNull())
-                }
-
-                append("afterNull",BsonString("afterNull"))
-            })
-        }
-
-        WithJsonObject(buildJsonObject {
-            put("string",JsonPrimitive("string"))
-            put("boolean",JsonPrimitive(true))
-            put("int",JsonPrimitive(3))
-            put("double",JsonPrimitive(3.0))
-            put("long",JsonPrimitive(3L))
-            put("null",JsonNull)
-            put("afterNull",JsonPrimitive("afterNull"))
-        })
+        withJsonObject
             .let{
                 kBson.stringify(WithJsonObject.serializer(),it)
             }
             .let{
-                println(it.toJson())
-                assertEquals(doc.toJson(), it.toJson())
+                assertEquals(withJsonObjectDoc.toJson(), it.toJson())
             }
 
     }
 
+    @Test
+    fun parseJsonObject() {
+        val result = kBson.parse(WithJsonObject.serializer(),withJsonObjectDoc)
+
+        assertEquals(withJsonObject,result)
+    }
 }

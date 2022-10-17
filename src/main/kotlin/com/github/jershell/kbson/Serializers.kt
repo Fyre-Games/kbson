@@ -1,6 +1,7 @@
 package com.github.jershell.kbson
 
 import kotlinx.serialization.*
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -8,6 +9,7 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.encoding.encodeCollection
 import kotlinx.serialization.json.*
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.SerializersModuleBuilder
@@ -158,10 +160,14 @@ object JsonElementSerializer : KSerializer<JsonElement> {
 
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("JsonElementSerializer", PrimitiveKind.STRING)
 
+    private val ListSerializer = ListSerializer(JsonElementSerializer)
+
     override fun serialize(encoder: Encoder,value: JsonElement) {
         when (encoder) {
             is BsonEncoder -> when (value) {
-                is JsonNull -> encoder.encodeNull()
+                is JsonNull -> {
+                    encoder.encodeNull()
+                }
                 is JsonObject -> encoder.encodeSerializableValue(JsonObjectSerializer,value)
                 is JsonPrimitive -> {
 
@@ -179,6 +185,9 @@ object JsonElementSerializer : KSerializer<JsonElement> {
                     value.doubleOrNull?.let { return encoder.encodeDouble(it) }
                     value.booleanOrNull?.let { return encoder.encodeBoolean(it) }
                 }
+                is JsonArray -> {
+                    encoder.encodeSerializableValue(ListSerializer,value)
+                }
                 else -> throw SerializationException("Unknown JsonElement")
             }
             else -> throw SerializationException("Unknown encoder type")
@@ -189,13 +198,19 @@ object JsonElementSerializer : KSerializer<JsonElement> {
     override fun deserialize(decoder: Decoder): JsonElement {
         return when (decoder) {
             is FlexibleDecoder -> {
-                when (decoder.reader.currentBsonType) {
+
+                val current = decoder.reader.currentBsonType
+
+                when (current) {
                     BsonType.NULL -> decoder.reader.readNull().let{ JsonNull }
-                    BsonType.STRING -> JsonPrimitive(decoder.reader.readString())
-                    BsonType.BOOLEAN -> JsonPrimitive(decoder.reader.readBoolean())
-                    BsonType.DOUBLE -> JsonPrimitive(decoder.reader.readDouble())
-                    BsonType.INT32 -> JsonPrimitive(decoder.reader.readInt32())
-                    BsonType.INT64 -> JsonPrimitive(decoder.reader.readInt64())
+                    BsonType.STRING -> JsonPrimitive(decoder.decodeString())
+                    BsonType.BOOLEAN -> JsonPrimitive(decoder.decodeBoolean())
+                    BsonType.DOUBLE -> JsonPrimitive(decoder.decodeDouble())
+                    BsonType.INT32 -> JsonPrimitive(decoder.decodeInt())
+                    BsonType.INT64 -> JsonPrimitive(decoder.decodeLong())
+                    BsonType.ARRAY -> {
+                        JsonArray(decoder.decodeSerializableValue(ListSerializer))
+                    }
                     else -> throw SerializationException("Unknown JsonElement")
                 }
             }
