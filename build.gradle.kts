@@ -1,3 +1,6 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
+
 val LIBRARY_VERSION_NAME = "0.4.5"
 val GROUP_ID = "com.github.jershell"
 val ARTIFACT_ID = rootProject.name
@@ -19,6 +22,7 @@ repositories {
 plugins {
     kotlin("jvm") version "1.6.21" // or kotlin("multiplatform") or any other kotlin plugin
     kotlin("plugin.serialization") version "1.6.21"
+    id("com.github.johnrengelman.shadow") version "7.0.0"
     id("maven-publish")
 }
 
@@ -30,10 +34,11 @@ version = LIBRARY_VERSION_NAME
 
 dependencies {
     // Use the Kotlin JDK 8 standard library.
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:$KOTLINX_SERIALIZATION_RUNTIME")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$KOTLINX_SERIALIZATION_RUNTIME")
-    implementation("org.mongodb:bson:4.6.0")
+    compileOnly(kotlin("reflect"))
+    compileOnly("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    compileOnly("org.jetbrains.kotlinx:kotlinx-serialization-core:$KOTLINX_SERIALIZATION_RUNTIME")
+    compileOnly("org.jetbrains.kotlinx:kotlinx-serialization-json:$KOTLINX_SERIALIZATION_RUNTIME")
+    compileOnly("org.mongodb:bson:4.6.0")
 
     // Use the Kotlin test library.
     testImplementation("org.jetbrains.kotlin:kotlin-test")
@@ -42,21 +47,21 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 }
 
-tasks.register<Jar>("sourcesAll") {
-    from(sourceSets.main.get().allSource)
-    archiveClassifier.set("sources")
-}
+//tasks.register<Jar>("sourcesAll") {
+//    from(sourceSets.main.get().allSource)
+//    archiveClassifier.set("sources")
+//}
 
-tasks.withType<GenerateMavenPom>().configureEach {
-    val matcher = Regex("""generatePomFileFor(\w+)Publication""").matchEntire(name)
-    val publicationName = matcher?.let { it.groupValues[1] }
-    destination = file("$buildDir/poms/$publicationName-pom.xml")
-}
+//tasks.withType<GenerateMavenPom>().configureEach {
+//    val matcher = Regex("""generatePomFileFor(\w+)Publication""").matchEntire(name)
+//    val publicationName = matcher?.let { it.groupValues[1] }
+//    destination = file("$buildDir/poms/$publicationName-pom.xml")
+//}
 
-tasks.register<Jar>("javadocJar") {
-    archiveClassifier.set("javadoc")
-    from("$rootDir/README.md")
-}
+//tasks.register<Jar>("javadocJar") {
+//    archiveClassifier.set("javadoc")
+//    from("$rootDir/README.md")
+//}
 
 fun printResults(desc: TestDescriptor, result: TestResult) {
     if (desc.parent != null) {
@@ -77,12 +82,24 @@ fun printResults(desc: TestDescriptor, result: TestResult) {
     }
 }
 
+tasks.getByName<ShadowJar>("shadowJar") {
+    classifier = null
+    archiveName =  "${ARTIFACT_ID}-$LIBRARY_VERSION_NAME.jar"
+}
+
 publishing {
     publications {
+
+        create<MavenPublication>("shadow") {
+            project.extensions.configure<ShadowExtension>() {
+                component(this@create)
+            }
+        }
+
         create<MavenPublication>("mavenJava") {
-            from(components["java"])
-            artifact(tasks["sourcesAll"])
-            artifact(tasks["javadocJar"])
+//            from(components["java"])
+//            artifact(tasks["sourcesAll"])
+//            artifact(tasks["javadocJar"])
             pom {
                 name.set(provider { "$GROUP_ID:$ARTIFACT_ID" })
                 description.set(provider { project.description ?: SHORT_DESC })

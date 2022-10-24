@@ -6,6 +6,7 @@ import kotlinx.serialization.descriptors.*
 import kotlinx.serialization.encoding.AbstractEncoder
 import kotlinx.serialization.encoding.CompositeEncoder
 import kotlinx.serialization.modules.SerializersModule
+import org.bson.AbstractBsonWriter
 import org.bson.BsonBinary
 import org.bson.BsonWriter
 import org.bson.UuidRepresentation
@@ -15,7 +16,7 @@ import java.util.UUID
 
 
 open class BsonEncoder(
-        private val writer: KBsonWriter,
+        private val writer: BsonWriter,
         override val serializersModule: SerializersModule,
         private val configuration: Configuration
 ) : AbstractEncoder() {
@@ -146,11 +147,31 @@ open class BsonEncoder(
             when (state) {
                 STATE.NAME -> {
                     state = STATE.VALUE
-                    writer.skip()
+
+                    if (this.writer is KBsonWriter) {
+                        writer.skip()
+                    } else {
+                        SET_STATE_FUNCTION.call(this.writer,when (GET_STATE_FUNCTION.call(this.writer)) {
+                            AbstractBsonWriter.State.NAME -> AbstractBsonWriter.State.VALUE
+                            AbstractBsonWriter.State.VALUE -> AbstractBsonWriter.State.NAME
+                            else -> throw IllegalStateException("Undefined state")
+                        })
+                    }
+
                 }
                 STATE.VALUE -> {
                     state = STATE.NAME
-                    writer.skip()
+
+                    if (this.writer is KBsonWriter) {
+                        writer.skip()
+                    } else {
+                        SET_STATE_FUNCTION.call(this.writer,when (GET_STATE_FUNCTION.call(this.writer)) {
+                            AbstractBsonWriter.State.NAME -> AbstractBsonWriter.State.VALUE
+                            AbstractBsonWriter.State.VALUE -> AbstractBsonWriter.State.NAME
+                            else -> throw IllegalStateException("Undefined state")
+                        })
+                    }
+
                 }
             }
         } else {
