@@ -121,7 +121,6 @@ open class BsonEncoder(
             is StructureKind.MAP -> {
                 state = stateMap.next()
             }
-
 /*            SerialKind.ENUM -> TODO()
             SerialKind.CONTEXTUAL -> TODO()
             PrimitiveKind.BOOLEAN -> TODO()
@@ -282,7 +281,8 @@ open class BsonEncoder(
 
     fun encodeUUID(value: UUID, uuidRepresentation: UuidRepresentation = UuidRepresentation.STANDARD) {
         when (state) {
-            STATE.VALUE -> writer.writeBinaryData(BsonBinary(value, uuidRepresentation))
+            STATE.VALUE -> writer.writeString(value.toString())
+            //STATE.VALUE -> writer.writeBinaryData(BsonBinary(value, uuidRepresentation))
             // I think we can use base64, but files can be big
             STATE.NAME -> throw SerializationException("UUID is not supported as a key of map")
         }
